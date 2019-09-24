@@ -1,4 +1,7 @@
-import tkinter as tk 
+# # # # # #
+# Imports #
+# # # # # #
+import tkinter as tk
 import tkinter.messagebox as msgbox
 import tkinter.simpledialog as dialog
 
@@ -8,6 +11,7 @@ import random
 
 import time
 import threading
+
 # # # # # # # # #
 # Constant Init #
 # # # # # # # # #
