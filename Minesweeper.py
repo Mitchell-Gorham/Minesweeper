@@ -20,7 +20,7 @@ window.title("Minesweeper")
 window.iconbitmap("game.ico")
 
 flagGraphic = "⛳"  # Image that is displayed on Flag
-mineGraphic = "⚙"   # Image that is displayed on Mine
+mineGraphic = "⛒"   # Image that is displayed on Mine
 resetGraphic = "☺"   # Image that is displayed on Reset Button
 # Colour of Numbers indicating mine presence (Values from Minesweeper)
 colour = ['#FFFFFF', '#0000FF', '#008200', '#FF0000', '#000084', '#840000', '#008284', '#840084', '#000000']
@@ -55,7 +55,7 @@ customGameSizes = []    # Stores players custom game stats
 
 # # # # # # # # # # # # #
 # Function Declarations #
-# x = rows, y = columns #
+# x = columns, y = rows #
 # # # # # # # # # # # # #
 
 def loadConfig():
@@ -146,7 +146,7 @@ def setSize(r,c,m):
     saveConfig()
     gameRestart()
 
-def prepareGame():
+def prepareGame(xPos,yPos):
     global rows, columns, mineCount, flagCount, gameField
     
     gameField = []
@@ -160,13 +160,13 @@ def prepareGame():
     for _ in range(0, mineCount):
         x = random.randint(0, rows-1)
         y = random.randint(0, columns-1)
-        # Check if mine position already has a mine, repeat until free
-        while gameField[x][y] == -1:
+        # Check if mine position already has a mine or is at the same place the user wants to reveal, rerandomise it's location if there's a conflict
+        while gameField[x][y] == -1 or (x == xPos and y == yPos):
             x = random.randint(0, rows-1)
             y = random.randint(0, columns-1)
         gameField[x][y] = -1
 
-        # Calculate numbers surrounding mines
+        # Calculate value of cells that have at least one adjacent mine
         if x != 0:
             if y != 0:
                 if gameField[x-1][y-1] != -1:
@@ -192,10 +192,9 @@ def prepareGame():
                 if gameField[x+1][y+1] != -1:
                     gameField[x+1][y+1] = int(gameField[x+1][y+1]) + 1  
 
-    # Update flag values and sleep to prevent user from breaking script
+    # Update flag values
     flagCount = mineCount
     flagsLabel.set(flagCount)
-    time.sleep(0.6)
 
 def prepareWindow():
     global rows, columns, buttons
@@ -214,6 +213,8 @@ def prepareWindow():
             b.bind("<Button-3>", lambda e, x=x, y=y:flagCell(x, y))
             b.grid(row=x+1, column=y, sticky=tk.N+tk.W+tk.S+tk.E)
             buttons[x].append(b)
+    if gameTimeThread.isAlive(): 
+        gameTimeThread.join()
 
 def gameRestart():
     global gameOver, firstMove, gameTimeThread, gameTime
@@ -230,7 +231,6 @@ def gameRestart():
     # Reinitialise thread and run prepare functions
     gameTimeThread = threading.Timer(1.0, gameTimer)
     prepareWindow()
-    prepareGame()
 
 def revealCell(x,y):
     global gameField, buttons, rows, columns, colour, gameOver, firstMove, gameTimeThread
@@ -241,6 +241,7 @@ def revealCell(x,y):
     # Start timer thread on first user move
     if firstMove:
         firstMove = False
+        prepareGame(x,y)    # Layout mines (Won't place on first cell)
         gameTimeThread.start()
 
     buttons[x][y]["text"] = str(gameField[x][y])
@@ -334,7 +335,7 @@ def revealMines(x,y,rows,columns):
                 buttons[x][y].config(background='lime', disabledforeground='black')
             # Flagged Incorrectly
             if gameField[x][y] != -1 and buttons[x][y]["text"] == flagGraphic:
-                buttons[x][y].config(background='gray', disabledforeground='black')
+                buttons[x][y].config(background='pink', disabledforeground='black')
             # Unflagged Mine
             if gameField[x][y] == -1 and buttons[x][y]["text"] != flagGraphic:
                 buttons[x][y]["text"] = mineGraphic
@@ -359,9 +360,6 @@ if __name__ == "__main__":
         saveConfig()
 
     # Initalise game
-    gameTimeThread = threading.Timer(1.0, gameTimer)
-
     createMenu()
-    prepareWindow()
-    prepareGame()
+    gameRestart()
     window.mainloop() 
