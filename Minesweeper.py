@@ -50,7 +50,7 @@ firstMove = True    # Tracks when user takes first move
 gameOver = False    # Tracks when a mine is hit or game is won
 
 gameField = []          # Positioning of cells
-buttons = []            # Tracks each cell
+cell = []            # Tracks each cell
 customGameSizes = []    # Stores players custom game stats
 
 # # # # # # # # # # # # #
@@ -66,10 +66,10 @@ def loadConfig():
     config.read("config.ini")
     rows = config.getint("game", "rows")
     columns = config.getint("game", "columns")
-    mineCount = config.getint("game", "mineCount")
+    mineCount = config.getint("game", "mines")
     amountofsizes = config.getint("sizes", "amount")
     for x in range(0, amountofsizes):
-        customGameSizes.append((config.getint("sizes", "row"+str(x)), config.getint("sizes", "columns"+str(x)), config.getint("sizes", "mineCount"+str(x))))
+        customGameSizes.append((config.getint("sizes", "row"+str(x)), config.getint("sizes", "columns"+str(x)), config.getint("sizes", "mines"+str(x))))
 
 def saveConfig():
     global rows, columns, mineCount
@@ -79,13 +79,13 @@ def saveConfig():
     config.add_section("game")
     config.set("game", "rows", str(rows))
     config.set("game", "columns", str(columns))
-    config.set("game", "mineCount", str(mineCount))
+    config.set("game", "mines", str(mineCount))
     config.add_section("sizes")
     config.set("sizes", "amount", str(min(5,len(customGameSizes))))
     for x in range(0,min(5,len(customGameSizes))):
         config.set("sizes", "row"+str(x), str(customGameSizes[x][0]))
         config.set("sizes", "columns"+str(x), str(customGameSizes[x][1]))
-        config.set("sizes", "mineCount"+str(x), str(customGameSizes[x][2]))
+        config.set("sizes", "mines"+str(x), str(customGameSizes[x][2]))
 
     with open("config.ini", "w") as file:
         config.write(file)
@@ -150,7 +150,7 @@ def prepareGame(xPos,yPos):
     global rows, columns, mineCount, flagCount, gameField
     
     gameField = []
-    # Add tiles or "buttons" to the field
+    # Add cells to the field
     for x in range(0, rows):
         gameField.append([])
         for y in range(0, columns):
@@ -197,22 +197,22 @@ def prepareGame(xPos,yPos):
     flagsLabel.set(flagCount)
 
 def prepareWindow():
-    global rows, columns, buttons
+    global rows, columns, cell
 
     # Create header window
     tk.Label(window, textvariable=flagsLabel).grid(row=0, column=0, columnspan=3, sticky=tk.N+tk.W+tk.S+tk.E)
     tk.Button(window, textvariable=resetLabel, command=gameRestart).grid(row=0, column=3, columnspan=columns-6, sticky=tk.N+tk.W+tk.S+tk.E)
     tk.Label(window, textvariable=gameTimeLabel).grid(row=0, column=columns-3, columnspan=3, sticky=tk.N+tk.W+tk.S+tk.E)
     
-    # Create and bind event to mouse buttons for each button on the game field
-    buttons = []
+    # Create and bind event to mouse buttones for each cell on the game field
+    cell = []
     for x in range(0, rows):
-        buttons.append([])
+        cell.append([])
         for y in range(0, columns):
             b = tk.Button(window, text=" ", width=2, command=lambda x=x,y=y: revealCell(x,y))
             b.bind("<Button-3>", lambda e, x=x, y=y:flagCell(x, y))
             b.grid(row=x+1, column=y, sticky=tk.N+tk.W+tk.S+tk.E)
-            buttons[x].append(b)
+            cell[x].append(b)
     if gameTimeThread.isAlive(): 
         gameTimeThread.join()
 
@@ -233,7 +233,7 @@ def gameRestart():
     prepareWindow()
 
 def revealCell(x,y):
-    global gameField, buttons, rows, columns, colour, gameOver, firstMove, gameTimeThread
+    global gameField, cell, rows, columns, colour, gameOver, firstMove, gameTimeThread
 
     # Prevent interaction if the game is won/lost
     if gameOver:
@@ -244,28 +244,28 @@ def revealCell(x,y):
         prepareGame(x,y)    # Layout mines (Won't place on first cell)
         gameTimeThread.start()
 
-    buttons[x][y]["text"] = str(gameField[x][y])
+    cell[x][y]["text"] = str(gameField[x][y])
     if gameField[x][y] == -1:   # if gameField contains a mine
-        buttons[x][y]["text"] = mineGraphic
-        buttons[x][y].config(background='red', disabledforeground='black')
+        cell[x][y]["text"] = mineGraphic
+        cell[x][y].config(background='red', disabledforeground='black')
         gameOver = True
         #tk.messagebox.showinfo("Lose Message")
         revealMines(x,y,rows,columns)
-
-    else:   # otherwise gameField contains
-        buttons[x][y].config(disabledforeground=colour[gameField[x][y]])
-    # If no value is present in cell, check surrounding cells
+    # otherwise gameField contains a non-mine
+    else:   
+        cell[x][y].config(disabledforeground=colour[gameField[x][y]])
+    # Then, if no value is present in cell, check surrounding cells
     if gameField[x][y] == 0:    
-        buttons[x][y]["text"] = " "
+        cell[x][y]["text"] = " "
         cascadeCell(x,y)
 
-    buttons[x][y]['state'] = 'disabled'
-    buttons[x][y].config(relief=tk.SUNKEN)
+    cell[x][y]['state'] = 'disabled'
+    cell[x][y].config(relief=tk.SUNKEN)
     # Check if player has won
     win = True
     for x in range(0, rows):
         for y in range(0, columns):
-            if gameField[x][y] != -1 and buttons[x][y]["state"] == "normal":
+            if gameField[x][y] != -1 and (cell[x][y]["state"] == "normal" or cell[x][y]["text"] == flagGraphic):
                 win = False
     if win and gameOver == False:
         #tk.messagebox.showinfo("Win Message")
@@ -273,19 +273,19 @@ def revealCell(x,y):
         revealMines(x,y,rows,columns)
 
 def cascadeCell(x,y):
-    global gameField, buttons, colour, rows, columns
+    global gameField, cell, colour, rows, columns
 
     # If already activated
-    if buttons[x][y]["state"] == "disabled":
+    if cell[x][y]["state"] == "disabled":
         return
     # if cell has adjacent mine
     if gameField[x][y] != 0:
-        buttons[x][y]["text"] = str(gameField[x][y])
+        cell[x][y]["text"] = str(gameField[x][y])
     else:   # Cell has no adjacent mines
-        buttons[x][y]["text"] = " "
-    buttons[x][y].config(disabledforeground=colour[gameField[x][y]])
-    buttons[x][y].config(relief=tk.SUNKEN)
-    buttons[x][y]['state'] = 'disabled'
+        cell[x][y]["text"] = " "
+    cell[x][y].config(disabledforeground=colour[gameField[x][y]])
+    cell[x][y].config(relief=tk.SUNKEN)
+    cell[x][y]['state'] = 'disabled'
     # Check each adjacent cell
     if gameField[x][y] == 0:
         if x != 0 and y != 0:
@@ -306,20 +306,20 @@ def cascadeCell(x,y):
             cascadeCell(x+1,y+1)
 
 def flagCell(x,y):
-    global buttons, flagCount
+    global cell, flagCount
 
     if gameOver:
         return
     # If the cell is already flagged, remove it
-    if buttons[x][y]["text"] == flagGraphic:
+    if cell[x][y]["text"] == flagGraphic:
         updateFlagCount(1)
-        buttons[x][y]["text"] = " "
-        buttons[x][y]["state"] = "normal"
+        cell[x][y]["text"] = " "
+        cell[x][y]["state"] = "normal"
     # Otherwise flag the cell
-    elif buttons[x][y]["text"] == " " and buttons[x][y]["state"] == "normal" and flagCount > 0:
+    elif cell[x][y]["text"] == " " and cell[x][y]["state"] == "normal" and flagCount > 0:
         updateFlagCount(-1)
-        buttons[x][y]["text"] = flagGraphic
-        buttons[x][y]["state"] = "disabled"
+        cell[x][y]["text"] = flagGraphic
+        cell[x][y]["state"] = "disabled"
 
 def updateFlagCount(change):
     global flagCount
@@ -331,15 +331,15 @@ def revealMines(x,y,rows,columns):
     for x in range(0, rows):
         for y in range(columns):
             # Flagged Correctly
-            if gameField[x][y] == -1 and buttons[x][y]["text"] == flagGraphic:
-                buttons[x][y].config(background='lime', disabledforeground='black')
+            if gameField[x][y] == -1 and cell[x][y]["text"] == flagGraphic:
+                cell[x][y].config(background='lime', disabledforeground='black')
             # Flagged Incorrectly
-            if gameField[x][y] != -1 and buttons[x][y]["text"] == flagGraphic:
-                buttons[x][y].config(background='pink', disabledforeground='black')
+            if gameField[x][y] != -1 and cell[x][y]["text"] == flagGraphic:
+                cell[x][y].config(background='pink', disabledforeground='black')
             # Unflagged Mine
-            if gameField[x][y] == -1 and buttons[x][y]["text"] != flagGraphic:
-                buttons[x][y]["text"] = mineGraphic
-            buttons[x][y]["state"] = 'disabled'
+            if gameField[x][y] == -1 and cell[x][y]["text"] != flagGraphic:
+                cell[x][y]["text"] = mineGraphic
+            cell[x][y]["state"] = 'disabled'
             
 def gameTimer():
     global gameTime, firstMove, gameOver
