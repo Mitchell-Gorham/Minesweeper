@@ -4,6 +4,7 @@
 import tkinter as tk
 import tkinter.messagebox as msgbox
 import tkinter.simpledialog as dialog
+import tkinter.font as tkFont
 
 import configparser
 import os
@@ -18,12 +19,16 @@ import threading
 window = tk.Tk()
 window.title("Minesweeper")
 window.iconbitmap("game.ico")
+window.resizable(0,0)
+default_font = tkFont.nametofont("TkDefaultFont")
+default_font.configure(size=12, weight=(tk.font.BOLD))
 
 flagGraphic = "⛳"  # Image that is displayed on Flag
 mineGraphic = "⛒"   # Image that is displayed on Mine
 resetGraphic = "☺"   # Image that is displayed on Reset Button
 # Colour of Numbers indicating mine presence (Values from Minesweeper)
 colour = ['#FFFFFF', '#0000FF', '#008200', '#FF0000', '#000084', '#840000', '#008284', '#840084', '#000000']
+validNum = ['1','2','3','4','5','6','7','8']
 
 # # # # # # # # #
 # Variable Init #
@@ -35,7 +40,7 @@ mineCount = 10      # Default mines on first run
 # Amount of flags set to mine count, assigned to tk.label that displays it
 flagCount = mineCount                 
 flagsLabel = tk.StringVar()
-flagsLabel.set(flagCount)
+flagsLabel.set(flagGraphic+str(flagCount))
 
 # Time elapsed since first move, assigned to tk.label that displays it
 gameTime = 0
@@ -192,9 +197,11 @@ def prepareGame(xPos,yPos):
                 if gameField[x+1][y+1] != -1:
                     gameField[x+1][y+1] = int(gameField[x+1][y+1]) + 1  
 
+    if int(gameField[xPos][yPos]) !=0:
+        prepareGame(xPos,yPos)
     # Update flag values
     flagCount = mineCount
-    flagsLabel.set(flagCount)
+    flagsLabel.set(flagGraphic+str(flagCount))
 
 def prepareWindow():
     global rows, columns, cell
@@ -209,7 +216,8 @@ def prepareWindow():
     for x in range(0, rows):
         cell.append([])
         for y in range(0, columns):
-            b = tk.Button(window, text=" ", width=2, command=lambda x=x,y=y: revealCell(x,y))
+            b = tk.Button(window, text=" ", width=3, height = 1, command=lambda x=x,y=y: revealCell(x,y))
+            b.bind("<Button-2>", lambda e, x=x, y=y:checkCell(x, y))
             b.bind("<Button-3>", lambda e, x=x, y=y:flagCell(x, y))
             b.grid(row=x+1, column=y, sticky=tk.N+tk.W+tk.S+tk.E)
             cell[x].append(b)
@@ -246,64 +254,76 @@ def revealCell(x,y):
 
     cell[x][y]["text"] = str(gameField[x][y])
     if gameField[x][y] == -1:   # if gameField contains a mine
-        cell[x][y]["text"] = mineGraphic
-        cell[x][y].config(background='red', disabledforeground='black')
-        gameOver = True
-        #tk.messagebox.showinfo("Lose Message")
-        revealMines(x,y,rows,columns)
+        gameLose(x,y)
     # otherwise gameField contains a non-mine
     else:   
-        cell[x][y].config(disabledforeground=colour[gameField[x][y]])
+        cell[x][y].config(background='lightgrey', disabledforeground=colour[gameField[x][y]])
+
     # Then, if no value is present in cell, check surrounding cells
     if gameField[x][y] == 0:    
         cell[x][y]["text"] = " "
-        cascadeCell(x,y)
+        cascadeCell(x,y,False)
 
     cell[x][y]['state'] = 'disabled'
     cell[x][y].config(relief=tk.SUNKEN)
     # Check if player has won
-    win = True
-    for x in range(0, rows):
-        for y in range(0, columns):
-            if gameField[x][y] != -1 and (cell[x][y]["state"] == "normal" or cell[x][y]["text"] == flagGraphic):
-                win = False
-    if win and gameOver == False:
-        #tk.messagebox.showinfo("Win Message")
-        gameOver = True
-        revealMines(x,y,rows,columns)
+    checkWin()
 
-def cascadeCell(x,y):
+def cascadeCell(x,y,check):
     global gameField, cell, colour, rows, columns
 
     # If already activated
-    if cell[x][y]["state"] == "disabled":
+    if cell[x][y]["state"] == "disabled" and check == False:
+        return
+    
+    if gameField[x][y] == -1:   # if gameField contains a mine
+        gameLose(x,y)
         return
     # if cell has adjacent mine
     if gameField[x][y] != 0:
         cell[x][y]["text"] = str(gameField[x][y])
     else:   # Cell has no adjacent mines
         cell[x][y]["text"] = " "
-    cell[x][y].config(disabledforeground=colour[gameField[x][y]])
+    cell[x][y].config(background='lightgrey', disabledforeground=colour[gameField[x][y]])
     cell[x][y].config(relief=tk.SUNKEN)
     cell[x][y]['state'] = 'disabled'
     # Check each adjacent cell
-    if gameField[x][y] == 0:
+    if gameField[x][y] == 0 or check:
         if x != 0 and y != 0:
-            cascadeCell(x-1,y-1)
+            cascadeCell(x-1,y-1,False)
         if x != 0:
-            cascadeCell(x-1,y)
+            cascadeCell(x-1,y,False)
         if x != 0 and y != columns-1:
-            cascadeCell(x-1,y+1)
+            cascadeCell(x-1,y+1,False)
         if y != 0:
-            cascadeCell(x,y-1)
+            cascadeCell(x,y-1,False)
         if y != columns-1:
-            cascadeCell(x,y+1)
+            cascadeCell(x,y+1,False)
         if x != rows-1 and y != 0:
-            cascadeCell(x+1,y-1)
+            cascadeCell(x+1,y-1,False)
         if x != rows-1:
-            cascadeCell(x+1,y)
+            cascadeCell(x+1,y,False)
         if x != rows-1 and y != columns-1:
-            cascadeCell(x+1,y+1)
+            cascadeCell(x+1,y+1,False)
+
+def checkCell(x, y):
+    global gameField, cell, rows, columns, colour, gameOver, flagGraphic, validNum
+    
+    flagCheck = 0
+
+    if gameOver:
+        return
+
+    if cell[x][y]['text'] in validNum:
+        for ix in range (-1, 2):
+            for iy in range (-1, 2):
+                if x+ix < rows and y+iy < columns:
+                    if cell[x+ix][y+iy]['text'] == flagGraphic:
+                        flagCheck += 1
+        if flagCheck == int(cell[x][y]['text']):
+            cascadeCell(x,y,True)
+
+    checkWin()
 
 def flagCell(x,y):
     global cell, flagCount
@@ -325,7 +345,28 @@ def updateFlagCount(change):
     global flagCount
 
     flagCount += change
-    flagsLabel.set(flagCount)
+    flagsLabel.set(flagGraphic+str(flagCount))
+
+def checkWin():
+    global gameField, cell, rows, columns, gameOver, flagGraphic
+
+    win = True
+    for x in range(0, rows):
+        for y in range(0, columns):
+            if gameField[x][y] != -1 and (cell[x][y]["state"] == "normal" or cell[x][y]["text"] == flagGraphic):
+                win = False
+    if win and gameOver == False:
+        #tk.messagebox.showinfo("Win Message")
+        gameOver = True
+        revealMines(x,y,rows,columns)
+
+def gameLose(x,y):
+    global cell, rows, columns, gameOver, mineGraphic
+    cell[x][y]["text"] = mineGraphic
+    cell[x][y].config(background='red', disabledforeground='black')
+    gameOver = True
+    #tk.messagebox.showinfo("Lose Message")
+    revealMines(x,y,rows,columns)
 
 def revealMines(x,y,rows,columns):
     for x in range(0, rows):
