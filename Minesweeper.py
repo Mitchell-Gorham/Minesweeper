@@ -9,6 +9,7 @@ import tkinter.font as tkFont
 import configparser
 import os
 import random
+import sys
 
 import time
 import threading
@@ -16,6 +17,9 @@ import threading
 # # # # # # # # #
 # Constant Init #
 # # # # # # # # #
+sysType = 0
+cellDisplay = ''
+
 window = tk.Tk()
 window.title("Minesweeper")
 window.iconbitmap("game.ico")
@@ -127,18 +131,24 @@ def setCustomSize():
     global customGameSizes
 
     # Ask user for new dimensions
-    rows = dialog.askinteger("Custom size", "Enter amount of rows")
-    columns = dialog.askinteger("Custom size", "Enter amount of columns\nMin: 7")
-    while columns < 7:
-        columns = dialog.askinteger("Custom size", "Enter amount of columns\nMin: 7")
-    mineCount = dialog.askinteger("Custom size", "Enter amount of mines\nMax: " + str((rows*columns)-1))
-    while mineCount > (rows*columns)-1:
-        mineCount = dialog.askinteger("Custom size", "Enter amount of mines\nMax: " + str((rows*columns)-1))
-    
+    newRows = dialog.askinteger("Custom size", "Enter amount of rows")
+    if isinstance(newRows, int) == False:
+        return
+    newColumns = dialog.askinteger("Custom size", "Enter amount of columns\nMin: 7")
+    if isinstance(newColumns, int):
+        while newColumns < 7:
+            newColumns = dialog.askinteger("Custom size", "Enter amount of columns\nMin: 7")
+    else:
+        return
+    newMineCount = dialog.askinteger("Custom size", "Enter amount of mines\nMax: " + str((newRows*newColumns)-1))
+    if isinstance(newMineCount, int):
+        while newMineCount > (newRows*newColumns)-1:
+            newMineCount = dialog.askinteger("Custom size", "Enter amount of mines\nMax: " + str((newRows*newColumns)-1))
+
     # Add new dimension to config.ini and restart game
-    customGameSizes.insert(0, (rows, columns, mineCount))
+    customGameSizes.insert(0, (newRows, newColumns, newMineCount))
     customGameSizes = customGameSizes[0:5]
-    setSize(rows, columns, mineCount)
+    setSize(newRows, newColumns, newMineCount)
     createMenu()
 
 def setSize(r,c,m):
@@ -196,15 +206,18 @@ def prepareGame(xPos,yPos):
             if y != columns-1:
                 if gameField[x+1][y+1] != -1:
                     gameField[x+1][y+1] = int(gameField[x+1][y+1]) + 1  
-
-    if int(gameField[xPos][yPos]) !=0:
-        prepareGame(xPos,yPos)
+    try:
+        if int(gameField[xPos][yPos]) !=0:
+            prepareGame(xPos,yPos)
+    except RecursionError:
+        print("Recursion Limit Reached, no pocket today!")
+        
     # Update flag values
     flagCount = mineCount
     flagsLabel.set(flagGraphic+str(flagCount))
 
 def prepareWindow():
-    global rows, columns, cell
+    global rows, columns, cell, sysType
 
     # Create header window
     tk.Label(window, textvariable=flagsLabel).grid(row=0, column=0, columnspan=3, sticky=tk.N+tk.W+tk.S+tk.E)
@@ -217,8 +230,12 @@ def prepareWindow():
         cell.append([])
         for y in range(0, columns):
             b = tk.Button(window, text=" ", width=3, height = 1, command=lambda x=x,y=y: revealCell(x,y))
-            b.bind("<Button-2>", lambda e, x=x, y=y:checkCell(x, y))
-            b.bind("<Button-3>", lambda e, x=x, y=y:flagCell(x, y))
+            if sysType == 0:
+                b.bind("<ButtonRelease-2>", lambda e, x=x, y=y:checkCell(x, y))
+                b.bind("<ButtonRelease-3>", lambda e, x=x, y=y:flagCell(x, y))
+            if sysType == 1:
+                #b.bind("<space>", lambda e, x=x, y=y:checkCell(x, y))
+                b.bind("<ButtonRelease-2>", lambda e, x=x, y=y:flagCell(x, y))
             b.grid(row=x+1, column=y, sticky=tk.N+tk.W+tk.S+tk.E)
             cell[x].append(b)
     if gameTimeThread.isAlive(): 
@@ -241,7 +258,7 @@ def gameRestart():
     prepareWindow()
 
 def revealCell(x,y):
-    global gameField, cell, rows, columns, colour, gameOver, firstMove, gameTimeThread
+    global gameField, cell, rows, columns, colour, gameOver, firstMove, gameTimeThread, cellDisplay
 
     # Prevent interaction if the game is won/lost
     if gameOver:
@@ -256,8 +273,8 @@ def revealCell(x,y):
     if gameField[x][y] == -1:   # if gameField contains a mine
         gameLose(x,y)
     # otherwise gameField contains a non-mine
-    else:   
-        cell[x][y].config(background='lightgrey', disabledforeground=colour[gameField[x][y]])
+    else:
+        cell[x][y].config(**{ cellDisplay: 'lightgrey', 'disabledforeground': colour[gameField[x][y]] })
 
     # Then, if no value is present in cell, check surrounding cells
     if gameField[x][y] == 0:    
@@ -361,22 +378,25 @@ def checkWin():
         revealMines(x,y,rows,columns)
 
 def gameLose(x,y):
-    global cell, rows, columns, gameOver, mineGraphic
-    cell[x][y]["text"] = mineGraphic
-    cell[x][y].config(background='red', disabledforeground='black')
+    global cell, rows, columns, gameOver, mineGraphic, cellDisplay
+
+    #cell[x][y]["text"] = mineGraphic
+    cell[x][y].config(**{ 'text': mineGraphic, cellDisplay: 'red', 'disabledforeground': 'black' })
     gameOver = True
     #tk.messagebox.showinfo("Lose Message")
     revealMines(x,y,rows,columns)
 
 def revealMines(x,y,rows,columns):
+    global cellDisplay
+
     for x in range(0, rows):
         for y in range(columns):
             # Flagged Correctly
             if gameField[x][y] == -1 and cell[x][y]["text"] == flagGraphic:
-                cell[x][y].config(background='lime', disabledforeground='black')
+                cell[x][y].config(**{ cellDisplay: 'lime', 'disabledforeground': 'black' })
             # Flagged Incorrectly
             if gameField[x][y] != -1 and cell[x][y]["text"] == flagGraphic:
-                cell[x][y].config(background='pink', disabledforeground='black')
+                cell[x][y].config(**{ cellDisplay: 'pink', 'disabledforeground': 'black' })
             # Unflagged Mine
             if gameField[x][y] == -1 and cell[x][y]["text"] != flagGraphic:
                 cell[x][y]["text"] = mineGraphic
@@ -394,11 +414,20 @@ def gameTimer():
 # M A I N #
 # # # # # #
 if __name__ == "__main__":
+    #global sysType, cellDisplay
+
     # Check to see if config data already exists to load from
     if os.path.exists("config.ini"):
         loadConfig()
     else:
         saveConfig()
+
+    if sys.platform in ["win32", "win64"]:
+        sysType=0
+        cellDisplay = "background"
+    if sys.platform == "darwin":
+        sysType=1
+        cellDisplay = "highlightbackground"
 
     # Initalise game
     createMenu()
