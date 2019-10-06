@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # # # # # #
 # Imports #
 # # # # # #
@@ -28,7 +30,7 @@ default_font = tkFont.nametofont("TkDefaultFont")
 default_font.configure(size=12, weight=(tk.font.BOLD))
 
 flagGraphic = "⛳"  # Image that is displayed on Flag
-mineGraphic = "⛒"   # Image that is displayed on Mine
+mineGraphic = "⦻"   # Image that is displayed on Mine
 resetGraphic = "☺"   # Image that is displayed on Reset Button
 # Colour of Numbers indicating mine presence (Values from Minesweeper)
 colour = ['#FFFFFF', '#0000FF', '#008200', '#FF0000', '#000084', '#840000', '#008284', '#840084', '#000000']
@@ -301,7 +303,7 @@ def cascadeCell(x,y,check):
         cell[x][y]["text"] = str(gameField[x][y])
     else:   # Cell has no adjacent mines
         cell[x][y]["text"] = " "
-    cell[x][y].config(background='lightgrey', disabledforeground=colour[gameField[x][y]])
+    cell[x][y].config(**{ cellDisplay: 'lightgrey', 'disabledforeground': colour[gameField[x][y]] })
     cell[x][y].config(relief=tk.SUNKEN)
     cell[x][y]['state'] = 'disabled'
     # Check each adjacent cell
